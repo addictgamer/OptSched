@@ -103,10 +103,6 @@ ConstrainedScheduler *BBWithSpill::AllocHeuristicScheduler_() {
     return new ListScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
                              hurstcPrirts_);
     break;
-  case SCHED_ACO:
-    return new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
-                            hurstcPrirts_);
-    break;
   case SCHED_SEQ:
     return new SequentialListScheduler(dataDepGraph_, machMdl_,
                                        abslutSchedUprBound_, hurstcPrirts_);

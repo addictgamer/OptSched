@@ -13,6 +13,7 @@
 #include "opt-sched/Scheduler/sched_region.h"
 #include "opt-sched/Scheduler/stats.h"
 #include "opt-sched/Scheduler/utilities.h"
+#include "opt-sched/Scheduler/aco.h"
 
 extern bool OPTSCHED_gPrintSpills;
 
@@ -78,12 +79,16 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     InstCount &hurstcSchedLngth, InstSchedule *&bestSched, bool filterByPerp,
     const BLOCKS_TO_KEEP blocksToKeep) {
   ConstrainedScheduler *lstSchdulr;
+  ConstrainedScheduler *acoSchdulr; //TODO: CHIPPIE: Need to free this... //TODO: CHIPPIE: Is this the right datatype?
   InstSchedule *lstSched = NULL;
+  InstSchedule *acoSched = NULL; //TODO: CHIPPIE: Need to free this... //TODO: CHIPPIE: Is this the right datatype?
   FUNC_RESULT rslt = RES_SUCCESS;
   Milliseconds hurstcTime = 0;
   Milliseconds boundTime = 0;
   Milliseconds enumTime = 0;
   Milliseconds vrfyTime = 0;
+  Milliseconds acoTime = 0;
+  Milliseconds acoStart = 0;
 
   enumCrntSched_ = NULL;
   enumBestSched_ = NULL;
@@ -131,8 +136,11 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   if (lstSched == NULL)
     Logger::Fatal("Out of memory.");
 
-  lstSchdulr = AllocHeuristicScheduler_();
+  //TODO: CHIPPIE: Add the RUN_ACO_SCHEDULER flag check here, and then run ACO?
 
+  lstSchdulr = AllocHeuristicScheduler_(); //TODO: CHIPPIE: This one currently calls the heuristic allocator for the ACO scheduler. Need to move that up here, and run ACO anyway, if ACO is enabled...
+
+  //TODO: CHIPPIE: Add the RUN_HEURISTIC_SCHEDULER check here first? Do we WANT such a check?
   // Step #1: Find the heuristic schedule.
   rslt = lstSchdulr->FindSchedule(lstSched, this);
 
@@ -143,12 +151,14 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     return rslt;
   }
 
+  //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler? Think so, yes...since ACO will currently run this.
   hurstcTime = Utilities::GetProcessorTime() - hurstcStart;
   stats::heuristicTime.Record(hurstcTime);
   if (hurstcTime > 0)
     Logger::Info("Heuristic_Time %d", hurstcTime);
 
 #ifdef IS_DEBUG_SLIL_PRINTOUT
+  //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler.
   if (OPTSCHED_gPrintSpills) {
     const auto &slilVector = this->GetSLIL_();
     for (int j = 0; j < slilVector.size(); j++) {
@@ -161,7 +171,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 #endif
 
   Milliseconds boundStart = Utilities::GetProcessorTime();
-  hurstcSchedLngth_ = lstSched->GetCrntLngth();
+  hurstcSchedLngth_ = lstSched->GetCrntLngth(); //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler.
   bestSchedLngth_ = hurstcSchedLngth_;
   assert(bestSchedLngth_ >= schedLwrBound_);
   bestSched = bestSched_ = lstSched;
@@ -244,7 +254,69 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     return RES_FAIL;
   }
 
-  // Step #3: Find the optimal schedule if the heuristc was not optimal.
+  // Step #3: Try to find the optimal schedule with ACO if the heuristic was not optimal. //TODO: CHIPPIE: Make it happen.
+
+  cout << " ### BLARG ### \n";
+  // LLVM_DEBUG(dbgs() << " *** LLVM_DEBUG BLARG *** \n");
+  // Logger::Info(" *** LOGGER INFO BLARG *** \n");
+
+  bool run_aco = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
+  if (run_aco) {
+    cout << "TODO: ACO Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
+    acoStart = Utilities::GetProcessorTime();
+    acoSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
+    if (acoSched == NULL) {
+      Logger::Fatal("Out of memory.");
+    }
+
+    acoSchdulr = new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_);
+
+    rslt = acoSchdulr->FindSchedule(acoSched, this);
+
+    acoTime = Utilities::GetProcessorTime() - acoStart;
+    stats::acoTime.Record(acoTime);
+    if (acoTime > 0) {
+      Logger::Info("ACO_Time %d", acoTime);
+    }
+
+    if (rslt != RES_SUCCESS) {
+      Logger::Info("ACO scheduling failed");
+      delete lstSchdulr; //NOTE: If the heuristic schedule is made optional via a flag, then before attempting to delete lstSchdulr and lstSched, need to first check if they are allocated before attempting to delete them.
+      delete lstSched;
+      delete acoSchdulr;
+      delete acoSched;
+      return rslt;
+    }
+
+#ifdef IS_DEBUG_SLIL_PRINTOUT
+    //TODO: CHIPPIE: Does any of this need to be changed to reflect my changes?
+    if (OPTSCHED_gPrintSpills) {
+      const auto &slilVector = this->GetSLIL_();
+      for (int j = 0; j < slilVector.size(); j++) {
+        Logger::Info(
+            "SLIL after ACO Scheduler for dag %s Type %d %s is %d.",
+            dataDepGraph_->GetDagID(), j, machMdl_->GetRegTypeName(j).c_str(),
+            slilVector[j]);
+      }
+    }
+#endif
+
+    boundStart = Utilities::GetProcessorTime(); //TODO: CHIPPIE: Need this?
+    acoScheduleLength_ = acoSched->GetCrntLngth();
+
+    /*
+    //TODO: CHIPPIE: Need to modify this section to not _assign_ it, but to compare with the current best (which could only be the heuristic scheduler...unless that scheduler is disabled) and replace.
+    bestSchedLngth_ = acoScheduleLength_;
+    assert(bestSchedLngth_ >= schedLwrBound_); //TODO: But should it be an assertion...?
+    bestSched = bestSched_ = lstSched; //TODO: CHIPPIE: Don't assign...check if better and replace.
+    */
+
+    //TODO: CHIPPIE: There's a whole bunch of other stuff that the old combined heuristic-aco scheduler code has...need to copy all of that??
+  } else {
+    cout << "TODO: ACO Scheduler is not enabled.\n"; //TODO: CHIPPIE: Remove this when done debugging.
+  }
+
+  // Step #4: Find the optimal schedule if the heuristc was not optimal.
   Milliseconds enumStart = Utilities::GetProcessorTime();
 
 #ifdef IS_DEBUG_BOUNDS

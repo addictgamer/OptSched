@@ -128,6 +128,7 @@ protected:
   // The nomal heuristic scheduling results.
   InstCount hurstcCost_;
   InstCount hurstcSchedLngth_;
+  InstCount acoScheduleLength_;
 
   // The schedule currently used by the enumerator
   InstSchedule *enumCrntSched_;
