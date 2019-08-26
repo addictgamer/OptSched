@@ -13,6 +13,7 @@
 #include "opt-sched/Scheduler/sched_region.h"
 #include "opt-sched/Scheduler/stats.h"
 #include "opt-sched/Scheduler/utilities.h"
+#include "opt-sched/Scheduler/aco.h"
 
 extern bool OPTSCHED_gPrintSpills;
 
@@ -78,16 +79,42 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     InstCount &hurstcSchedLngth, InstSchedule *&bestSched, bool filterByPerp,
     const BLOCKS_TO_KEEP blocksToKeep) {
   ConstrainedScheduler *lstSchdulr;
+  ConstrainedScheduler *acoSchdulr;
   InstSchedule *lstSched = NULL;
+  InstSchedule *acoSched = NULL;
   FUNC_RESULT rslt = RES_SUCCESS;
   Milliseconds hurstcTime = 0;
   Milliseconds boundTime = 0;
   Milliseconds enumTime = 0;
   Milliseconds vrfyTime = 0;
+  Milliseconds acoTime = 0;
+  Milliseconds acoStart = 0;
+  Milliseconds boundStart;
 
   enumCrntSched_ = NULL;
   enumBestSched_ = NULL;
   bestSched = bestSched_ = NULL;
+
+  //TODO: CHIPPIE: Perhaps rename these to match the flag?
+  bool run_heur_sched = SchedulerOptions::getInstance().GetBool("HEUR_ENABLED");
+  bool run_aco_sched = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
+  bool run_bb_sched = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
+
+  if (false == run_heur_sched && false == run_aco_sched && false == run_bb_sched)
+  {
+    //Abort if all 3 algorithms are disabled.
+    cout << "TODO: Descriptive error message here saying that there must be at least one scheduler enabled.\n";
+    return RES_ERROR;
+  }
+
+	/*
+	 * Algorithm run order:
+	 * 1) Heuristic
+	 * 2) ACO
+	 * 3) Branch & Bound
+	 * 
+	 * Each of these 3 algorithms can be individually disabled. (TODO: CHIPPIE)
+	 */
 
   Logger::Info("---------------------------------------------------------------"
                "------------");
@@ -126,164 +153,251 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   SetupForSchdulng_();
   CmputAbslutUprBound_();
   schedLwrBound_ = dataDepGraph_->GetSchedLwrBound();
-  Milliseconds hurstcStart = Utilities::GetProcessorTime();
-  lstSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
-  if (lstSched == NULL)
-    Logger::Fatal("Out of memory.");
 
-  lstSchdulr = AllocHeuristicScheduler_();
+  if (run_heur_sched) {
+    cout << "TODO: Heuristic Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
+    Milliseconds hurstcStart = Utilities::GetProcessorTime();
+    lstSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
+    if (lstSched == NULL)
+      Logger::Fatal("Out of memory.");
 
-  // Step #1: Find the heuristic schedule.
-  rslt = lstSchdulr->FindSchedule(lstSched, this);
+    lstSchdulr = AllocHeuristicScheduler_(); //TODO: CHIPPIE: This one currently calls the heuristic allocator for the ACO scheduler. Need to move that up here, and run ACO anyway, if ACO is enabled...
 
-  if (rslt != RES_SUCCESS) {
-    Logger::Info("List scheduling failed");
-    delete lstSchdulr;
-    delete lstSched;
-    return rslt;
+    //TODO: CHIPPIE: Add the RUN_HEURISTIC_SCHEDULER check here first? Do we WANT such a check?
+    // Step #1: Find the heuristic schedule.
+    rslt = lstSchdulr->FindSchedule(lstSched, this);
+
+    if (rslt != RES_SUCCESS) {
+      Logger::Info("List scheduling failed");
+      delete lstSchdulr;
+      delete lstSched;
+      return rslt;
+    }
+
+    //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler? Think so, yes...since ACO will currently run this.
+    hurstcTime = Utilities::GetProcessorTime() - hurstcStart;
+    stats::heuristicTime.Record(hurstcTime);
+    if (hurstcTime > 0)
+      Logger::Info("Heuristic_Time %d", hurstcTime);
+
+  #ifdef IS_DEBUG_SLIL_PRINTOUT
+    if (OPTSCHED_gPrintSpills) {
+      const auto &slilVector = this->GetSLIL_();
+      for (int j = 0; j < slilVector.size(); j++) {
+        Logger::Info(
+            "SLIL after Heuristic Scheduler for dag %s Type %d %s is %d.",
+            dataDepGraph_->GetDagID(), j, machMdl_->GetRegTypeName(j).c_str(),
+            slilVector[j]);
+      }
+    }
+  #endif
+
+    boundStart = Utilities::GetProcessorTime();
+    hurstcSchedLngth_ = lstSched->GetCrntLngth(); //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler.
+    bestSchedLngth_ = hurstcSchedLngth_;
+    assert(bestSchedLngth_ >= schedLwrBound_);
+    bestSched = bestSched_ = lstSched;
+
+    // Step #2: Compute the lower bounds and cost upper bound.
+    if (rgnTimeout == 0)
+      costLwrBound_ = CmputCostLwrBound();
+    else
+      CmputLwrBounds_(false);
+    assert(schedLwrBound_ <= lstSched->GetCrntLngth());
+
+    InstCount hurstcExecCost;
+    Config &schedIni = SchedulerOptions::getInstance();
+    if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
+      CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
+    } else {
+      CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
+    }
+    hurstcCost_ = lstSched->GetCost();
+    isLstOptml = CmputUprBounds_(lstSched, false);
+    boundTime = Utilities::GetProcessorTime() - boundStart;
+    stats::boundComputationTime.Record(boundTime);
+
+    FinishHurstc_();
+
+    //  #ifdef IS_DEBUG_SOLN_DETAILS_1
+    Logger::Info(
+        "The list schedule is of length %d and spill cost %d. Tot cost = %d",
+        bestSchedLngth_, lstSched->GetSpillCost(), bestCost_);
+    //  #endif
+
+  #ifdef IS_DEBUG_PRINT_SCHEDS
+    lstSched->Print(Logger::GetLogStream(), "Heuristic");
+  #endif
+  #ifdef IS_DEBUG_PRINT_BOUNDS
+    dataDepGraph_->PrintLwrBounds(DIR_FRWRD, Logger::GetLogStream(),
+                                  "CP Lower Bounds");
+  #endif
+
+    if (rgnTimeout == 0)
+      isLstOptml = true;
+
+    // (Chris): If the cost function is SLIL, then the list schedule is considered
+    // optimal if PERP is 0.
+    if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) {
+      const InstCount *regPressures = nullptr;
+      auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
+      InstCount sumPerp = 0;
+      for (int i = 0; i < regTypeCount; ++i) {
+        int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
+        if (perp > 0)
+          sumPerp += perp;
+      }
+      if (sumPerp == 0) {
+        isLstOptml = true;
+        Logger::Info("Marking SLIL list schedule as optimal due to zero PERP.");
+      }
+    }
+
+  #if defined(IS_DEBUG_SLIL_OPTIMALITY)
+    // (Chris): This code prints a statement when a schedule is SLIL-optimal but
+    // not PERP-optimal.
+    if (spillCostFunc_ == SCF_SLIL && bestCost_ == 0) {
+      const InstCount *regPressures = nullptr;
+      auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
+      InstCount sumPerp = 0;
+      for (int i = 0; i < regTypeCount; ++i) {
+        int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
+        if (perp > 0)
+          sumPerp += perp;
+      }
+      if (sumPerp > 0) {
+        Logger::Info("Dag %s is SLIL optimal but not PERP optimal (PERP=%d).",
+                    dataDepGraph_->GetDagID(), sumPerp);
+      }
+    }
+  #endif
+    if (EnableEnum_() == false) {
+      delete lstSchdulr;
+      return RES_FAIL;
+    }
   }
 
-  hurstcTime = Utilities::GetProcessorTime() - hurstcStart;
-  stats::heuristicTime.Record(hurstcTime);
-  if (hurstcTime > 0)
-    Logger::Info("Heuristic_Time %d", hurstcTime);
+  // Step #3: Try to find the optimal schedule with ACO if the heuristic was not optimal. //TODO: CHIPPIE: Make it happen.
+
+  cout << " ### BLARG ### \n";
+  // LLVM_DEBUG(dbgs() << " *** LLVM_DEBUG BLARG *** \n");
+  // Logger::Info(" *** LOGGER INFO BLARG *** \n");
+
+  if (run_aco_sched) {
+    cout << "TODO: ACO Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
+    acoStart = Utilities::GetProcessorTime();
+    acoSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
+    if (acoSched == NULL) {
+      Logger::Fatal("Out of memory.");
+    }
+
+    acoSchdulr = new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_);
+
+    rslt = acoSchdulr->FindSchedule(acoSched, this);
+
+    acoTime = Utilities::GetProcessorTime() - acoStart;
+    stats::acoTime.Record(acoTime);
+    if (acoTime > 0) {
+      Logger::Info("ACO_Time %d", acoTime);
+    }
+
+    if (rslt != RES_SUCCESS) {
+      Logger::Info("ACO scheduling failed");
+      delete lstSchdulr; //NOTE: If the heuristic schedule is made optional via a flag, then before attempting to delete lstSchdulr and lstSched, need to first check if they are allocated before attempting to delete them.
+      delete lstSched;
+      delete acoSchdulr;
+      delete acoSched;
+      return rslt;
+    }
 
 #ifdef IS_DEBUG_SLIL_PRINTOUT
-  if (OPTSCHED_gPrintSpills) {
-    const auto &slilVector = this->GetSLIL_();
-    for (int j = 0; j < slilVector.size(); j++) {
-      Logger::Info(
-          "SLIL after Heuristic Scheduler for dag %s Type %d %s is %d.",
-          dataDepGraph_->GetDagID(), j, machMdl_->GetRegTypeName(j).c_str(),
-          slilVector[j]);
+    //TODO: CHIPPIE: Does any of this need to be changed to reflect my changes?
+    if (OPTSCHED_gPrintSpills) {
+      const auto &slilVector = this->GetSLIL_();
+      for (int j = 0; j < slilVector.size(); j++) {
+        Logger::Info(
+            "SLIL after ACO Scheduler for dag %s Type %d %s is %d.",
+            dataDepGraph_->GetDagID(), j, machMdl_->GetRegTypeName(j).c_str(),
+            slilVector[j]);
+      }
     }
-  }
 #endif
 
-  Milliseconds boundStart = Utilities::GetProcessorTime();
-  hurstcSchedLngth_ = lstSched->GetCrntLngth();
-  bestSchedLngth_ = hurstcSchedLngth_;
-  assert(bestSchedLngth_ >= schedLwrBound_);
-  bestSched = bestSched_ = lstSched;
+    boundStart = Utilities::GetProcessorTime(); //TODO: CHIPPIE: Need this?
+    acoScheduleLength_ = acoSched->GetCrntLngth();
 
-  // Step #2: Compute the lower bounds and cost upper bound.
-  if (rgnTimeout == 0)
-    costLwrBound_ = CmputCostLwrBound();
-  else
-    CmputLwrBounds_(false);
-  assert(schedLwrBound_ <= lstSched->GetCrntLngth());
+    /*
+    //TODO: CHIPPIE: Need to modify this section to not _assign_ it, but to compare with the current best (which could only be the heuristic scheduler...unless that scheduler is disabled) and replace.
+    bestSchedLngth_ = acoScheduleLength_;
+    assert(bestSchedLngth_ >= schedLwrBound_); //TODO: But should it be an assertion...?
+    bestSched = bestSched_ = lstSched; //TODO: CHIPPIE: Don't assign...check if better and replace.
+    */
 
-  InstCount hurstcExecCost;
-  Config &schedIni = SchedulerOptions::getInstance();
-  if (!schedIni.GetBool("USE_ACO", false)) {
-    CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
+    //TODO: CHIPPIE: There's some other stuff that the old combined heuristic-aco scheduler code has...what of that needs to be copied, and how does it need to be modified?
   } else {
-    CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
-  }
-  hurstcCost_ = lstSched->GetCost();
-  isLstOptml = CmputUprBounds_(lstSched, false);
-  boundTime = Utilities::GetProcessorTime() - boundStart;
-  stats::boundComputationTime.Record(boundTime);
-
-  FinishHurstc_();
-
-  //  #ifdef IS_DEBUG_SOLN_DETAILS_1
-  Logger::Info(
-      "The list schedule is of length %d and spill cost %d. Tot cost = %d",
-      bestSchedLngth_, lstSched->GetSpillCost(), bestCost_);
-  //  #endif
-
-#ifdef IS_DEBUG_PRINT_SCHEDS
-  lstSched->Print(Logger::GetLogStream(), "Heuristic");
-#endif
-#ifdef IS_DEBUG_PRINT_BOUNDS
-  dataDepGraph_->PrintLwrBounds(DIR_FRWRD, Logger::GetLogStream(),
-                                "CP Lower Bounds");
-#endif
-
-  if (rgnTimeout == 0)
-    isLstOptml = true;
-
-  // (Chris): If the cost function is SLIL, then the list schedule is considered
-  // optimal if PERP is 0.
-  if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) {
-    const InstCount *regPressures = nullptr;
-    auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
-    InstCount sumPerp = 0;
-    for (int i = 0; i < regTypeCount; ++i) {
-      int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
-      if (perp > 0)
-        sumPerp += perp;
-    }
-    if (sumPerp == 0) {
-      isLstOptml = true;
-      Logger::Info("Marking SLIL list schedule as optimal due to zero PERP.");
-    }
+    cout << "TODO: ACO Scheduler is not enabled.\n"; //TODO: CHIPPIE: Remove this when done debugging.
   }
 
-#if defined(IS_DEBUG_SLIL_OPTIMALITY)
-  // (Chris): This code prints a statement when a schedule is SLIL-optimal but
-  // not PERP-optimal.
-  if (spillCostFunc_ == SCF_SLIL && bestCost_ == 0) {
-    const InstCount *regPressures = nullptr;
-    auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
-    InstCount sumPerp = 0;
-    for (int i = 0; i < regTypeCount; ++i) {
-      int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
-      if (perp > 0)
-        sumPerp += perp;
-    }
-    if (sumPerp > 0) {
-      Logger::Info("Dag %s is SLIL optimal but not PERP optimal (PERP=%d).",
-                   dataDepGraph_->GetDagID(), sumPerp);
-    }
-  }
-#endif
-  if (EnableEnum_() == false) {
-    delete lstSchdulr;
-    return RES_FAIL;
-  }
-
-  // Step #3: Find the optimal schedule if the heuristc was not optimal.
+  // Step #4: Find the optimal schedule if the heuristc was not optimal.
   Milliseconds enumStart = Utilities::GetProcessorTime();
 
 #ifdef IS_DEBUG_BOUNDS
   Logger::Info("Sched LB = %d, Sched UB = %d", schedLwrBound_, schedUprBound_);
 #endif
 
-  if (isLstOptml == false) {
-    dataDepGraph_->SetHard(true);
-    rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
-    Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
+  if (run_bb_sched) {
+    //TODO: CHIPPIE: What do if both the heuristic and the ACO scheduler are disabled?
 
-    if (hurstcTime > 0) {
-      enumTime /= hurstcTime;
-      stats::enumerationToHeuristicTimeRatio.Record(enumTime);
+    cout << "TODO: BB scheduler is enabled.\n";
+    //isLstOptml = false; //TODO: CHIPPIE: Remove this when done debugging. //Yes, this flow works correctly.
+    if (false == run_heur_sched || isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like:
+                               //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
+                               //ALSO: Need to change the first part to something more like:
+                               //if ((!run_heur_sched && !run_aco_sched) || ...) //then we have to run the BB algorithm.
+
+
+                               //TODO: CHIPPIE: ALSO. The run_aco_sched block will need to do the same sort of check...
+      cout << "TODO: Running BB scheduler...\n";
+      dataDepGraph_->SetHard(true);
+      rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
+      //TODO: CHIPPIE: Also. It currently fails with upper bounds if the heuristic and ACO are disabled...two observations:
+      // * there should be some sort of initialization for that probably.
+      // * ACO will need to be updated to set the upper bound properly too, since this issue occurs even if ACO is enabled (with the present code)
+      Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
+
+      if (hurstcTime > 0) {
+        enumTime /= hurstcTime;
+        stats::enumerationToHeuristicTimeRatio.Record(enumTime);
+      }
+
+      if (bestCost_ < hurstcCost_) {
+        assert(enumBestSched_ != NULL);
+        bestSched = bestSched_ = enumBestSched_;
+  #ifdef IS_DEBUG_PRINT_SCHEDS
+        enumBestSched_->Print(Logger::GetLogStream(), "Optimal");
+  #endif
+      }
+    } else if (rgnTimeout == 0) {
+      Logger::Info(
+          "Bypassing optimal scheduling due to zero time limit with cost %d",
+          bestCost_);
+    } else {
+      Logger::Info("The list schedule of length %d and cost %d is optimal.",
+                  bestSchedLngth_, bestCost_);
     }
 
-    if (bestCost_ < hurstcCost_) {
-      assert(enumBestSched_ != NULL);
-      bestSched = bestSched_ = enumBestSched_;
-#ifdef IS_DEBUG_PRINT_SCHEDS
-      enumBestSched_->Print(Logger::GetLogStream(), "Optimal");
-#endif
+    //TODO: CHIPPIE: Should this also be part of the BB_ENABLED flag? Or does it need to always run regardless?
+    if (rgnTimeout != 0) {
+      bool optimalSchedule = isLstOptml || (rslt == RES_SUCCESS); //TODO: CHIPPIE: Looks like it is, since the last rslt comes from the bb call up a few dozen lines, rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
+      Logger::Info("Best schedule for DAG %s has cost %d and length %d. The "
+                  "schedule is %s",
+                  dataDepGraph_->GetDagID(), bestCost_, bestSchedLngth_,
+                  optimalSchedule ? "optimal" : "not optimal");
     }
-  } else if (rgnTimeout == 0) {
-    Logger::Info(
-        "Bypassing optimal scheduling due to zero time limit with cost %d",
-        bestCost_);
-  } else {
-    Logger::Info("The list schedule of length %d and cost %d is optimal.",
-                 bestSchedLngth_, bestCost_);
   }
 
-  if (rgnTimeout != 0) {
-    bool optimalSchedule = isLstOptml || (rslt == RES_SUCCESS);
-    Logger::Info("Best schedule for DAG %s has cost %d and length %d. The "
-                 "schedule is %s",
-                 dataDepGraph_->GetDagID(), bestCost_, bestSchedLngth_,
-                 optimalSchedule ? "optimal" : "not optimal");
-  }
+  //TODO: CHIPPIE: Everything hereafter, should it run for _all_ of the schedulers? Regardless of which ones are enabled?
+  //I.e. are the following blocks of code BB specific? (Doesn't look it...)
 
 #ifdef IS_DEBUG_PRINT_PERP_AT_EACH_STEP
   Logger::Info("Printing PERP at each step in the schedule.");
@@ -326,17 +440,26 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 
   dataDepGraph_->SetFinalBounds(finalLwrBound, finalUprBound);
 
-  FinishOptml_();
+  FinishOptml_(); //TODO: CHIPPIE: Everything looks non-BB-specific except this? Maybe?
 
+  //TODO: CHIPPIE: Need to make this an up-to 3-way comparison since ACO has now entered the mix as a separate scheduler.
   bool tookBest = ChkSchedule_(bestSched, lstSched);
   if (tookBest == false) {
     bestCost_ = hurstcCost_;
     bestSchedLngth_ = hurstcSchedLngth_;
   }
 
-  delete lstSchdulr;
-  if (bestSched != lstSched)
-    delete lstSched;
+  if (run_heur_sched){
+    delete lstSchdulr;
+    if (bestSched != lstSched)
+      delete lstSched;
+  }
+  if (run_aco_sched) {
+    delete acoSchdulr;
+    if (bestSched != acoSched) {
+      delete acoSched;
+    }
+  }
   if (enumBestSched_ != NULL && bestSched != enumBestSched_)
     delete enumBestSched_;
   if (enumCrntSched_ != NULL)
@@ -348,7 +471,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   hurstcSchedLngth = hurstcSchedLngth_;
   // (Chris): Experimental. Discard the schedule based on sched.ini setting.
   if (spillCostFunc_ == SCF_SLIL) {
-    bool optimal = isLstOptml || (rslt == RES_SUCCESS);
+    bool optimal = isLstOptml || (rslt == RES_SUCCESS); //TODO: CHIPPIE: This also needs to be updated to account for the heuristic enabling/disabled, and the splitoff of ACO from it.
     if ((blocksToKeep == BLOCKS_TO_KEEP::ZERO_COST && bestCost != 0) ||
         (blocksToKeep == BLOCKS_TO_KEEP::OPTIMAL && !optimal) ||
         (blocksToKeep == BLOCKS_TO_KEEP::IMPROVED &&
@@ -360,7 +483,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
       return rslt;
     }
   }
-#if defined(IS_DEBUG_COMPARE_SLIL_BB)
+#if defined(IS_DEBUG_COMPARE_SLIL_BB) //TODO: CHIPPIE: This block will likewise need to be updated...I note that there are some references to isLstOptml, which will need to be updated if the heuristic scheduler is disabled, and also may need to be changed to account for ACO.
   {
     const auto &status = [&]() {
       switch (rslt) {
@@ -427,7 +550,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   Logger::Info("Final spill cost is %d for DAG %s.", bestSched_->GetSpillCost(),
                dataDepGraph_->GetDagID());
 #endif
-#if defined(IS_DEBUG_PRINT_PEAK_FOR_ENUMERATED)
+#if defined(IS_DEBUG_PRINT_PEAK_FOR_ENUMERATED)//TODO: CHIPPIE: This block will likewise need to be updated...I note that there are some references to isLstOptml, which will need to be updated if the heuristic scheduler is disabled, and also may need to be changed to account for ACO.
   if (!isLstOptml) {
     InstCount maxSpillCost = 0;
     for (int i = 0; i < dataDepGraph_->GetInstCnt(); ++i) {
@@ -451,7 +574,7 @@ FUNC_RESULT SchedRegion::Optimize_(Milliseconds startTime,
 
   InstCount initCost = bestCost_;
   enumrtr = AllocEnumrtr_(lngthTimeout);
-  rslt = Enumerate_(startTime, rgnTimeout, lngthTimeout);
+  rslt = Enumerate_(startTime, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: Actually runs the Branch and Bound algorithm.
 
   Milliseconds solnTime = Utilities::GetProcessorTime() - startTime;
 

@@ -162,8 +162,6 @@ static SchedulerType parseListSchedType() {
     return SCHED_LIST;
   if (SchedTypeString == "SEQ")
     return SCHED_SEQ;
-  if (SchedTypeString == "ACO")
-    return SCHED_ACO;
 
   Logger::Info("Unknown heuristic scheduler type selected defaulting to basic "
                "list scheduler.");
@@ -272,7 +270,7 @@ void ScheduleDAGOptSched::schedule() {
 #endif
 
   // Use LLVM's heuristic schedule as input to the B&B scheduler.
-  if (UseLLVMScheduler) {
+  if (UseLLVMScheduler) { //TODO: CHIPPIE: Add another flag for this?
     ScheduleDAGMILive::schedule();
 
     OriginalDAG = SUnits;
@@ -364,7 +362,7 @@ void ScheduleDAGOptSched::schedule() {
   SchedRegion *region = new BBWithSpill(
       OST.get(), static_cast<DataDepGraph *>(DDG.get()), 0, HistTableHashBits,
       LowerBoundAlgorithm, HeuristicPriorities, EnumPriorities, VerifySchedule,
-      PruningStrategy, SchedForRPOnly, EnumStalls, SCW, SCF, HeurSchedType);
+      PruningStrategy, SchedForRPOnly, EnumStalls, SCW, SCF, HeurSchedType); //TODO: CHIPPIE: Update this to not use ACO for HeurSchedType.
 
   bool IsEasy = false;
   InstCount NormBestCost = 0;
