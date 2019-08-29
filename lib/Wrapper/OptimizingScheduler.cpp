@@ -364,7 +364,7 @@ void ScheduleDAGOptSched::schedule() {
   SchedRegion *region = new BBWithSpill(
       OST.get(), static_cast<DataDepGraph *>(DDG.get()), 0, HistTableHashBits,
       LowerBoundAlgorithm, HeuristicPriorities, EnumPriorities, VerifySchedule,
-      PruningStrategy, SchedForRPOnly, EnumStalls, SCW, SCF, HeurSchedType);
+      PruningStrategy, SchedForRPOnly, EnumStalls, SCW, SCF, HeurSchedType); //TODO: CHIPPIE: Update this to not use ACO for HeurSchedType.
 
   bool IsEasy = false;
   InstCount NormBestCost = 0;

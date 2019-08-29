@@ -142,7 +142,7 @@ protected:
   int SimulatedSpills;
 
   // What list scheduler should be used to find an initial feasible schedule.
-  SchedulerType HeurSchedType;
+  SchedulerType HeurSchedType; //TODO: CHIPPIE: Update all references of this to not use the ACO value.
 
   // Load config files for the OptScheduler and set flags
   void loadOptSchedConfig();

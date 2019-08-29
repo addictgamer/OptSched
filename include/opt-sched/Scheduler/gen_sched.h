@@ -35,7 +35,7 @@ enum SchedulerType {
   // Sequential list scheduler.
   SCHED_SEQ,
   // Ant colony scheduler.
-  SCHED_ACO
+  SCHED_ACO //TODO: CHIPPIE: Remove this! Add a new flag: ENABLE_ACO.
 };
 
 // Forward declarations used to reduce the number of #includes.
