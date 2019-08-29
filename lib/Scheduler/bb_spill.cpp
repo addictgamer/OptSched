@@ -103,10 +103,6 @@ ConstrainedScheduler *BBWithSpill::AllocHeuristicScheduler_() {
     return new ListScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
                              hurstcPrirts_);
     break;
-  case SCHED_ACO: //TODO: CHIPPIE: Remove this and have the caller manually allocate and call the ACO Scheduler if ACO is enabled.
-    return new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
-                            hurstcPrirts_);
-    break;
   case SCHED_SEQ:
     return new SequentialListScheduler(dataDepGraph_, machMdl_,
                                        abslutSchedUprBound_, hurstcPrirts_);

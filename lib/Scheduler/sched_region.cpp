@@ -13,6 +13,7 @@
 #include "opt-sched/Scheduler/sched_region.h"
 #include "opt-sched/Scheduler/stats.h"
 #include "opt-sched/Scheduler/utilities.h"
+#include "opt-sched/Scheduler/aco.h"
 
 extern bool OPTSCHED_gPrintSpills;
 
@@ -268,14 +269,12 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
       Logger::Fatal("Out of memory.");
     }
 
-    //acoSchdulr = AllocACOScheduler_(); //TODO: CHIPPIE: Implement this. Or...just do it inline.
+    acoSchdulr = new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_);
 
     rslt = acoSchdulr->FindSchedule(acoSched, this);
 
-    //acoTime = Utilities::GetProcessorTime() - hurstcStart; //TODO: CHIPPIE: Remove this when done.
     acoTime = Utilities::GetProcessorTime() - acoStart;
-    stats::heuristicTime.Record(hurstcTime); //TODO: CHIPPIE: Remove this when done.
-    //stats::acoTime.Record(acoTime);
+    stats::acoTime.Record(acoTime);
     if (acoTime > 0) {
       Logger::Info("ACO_Time %d", acoTime);
     }

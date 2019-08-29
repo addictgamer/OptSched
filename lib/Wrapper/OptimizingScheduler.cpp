@@ -162,8 +162,6 @@ static SchedulerType parseListSchedType() {
     return SCHED_LIST;
   if (SchedTypeString == "SEQ")
     return SCHED_SEQ;
-  if (SchedTypeString == "ACO")
-    return SCHED_ACO; //TODO: CHIPPIE: Remove this option from this flag and make it its own setting: ENABLE_ACO_SCHEDULER //TODO: CHIPPIE: Also add another option: ENABLE_HEURISTIC_SCHEDULER
 
   Logger::Info("Unknown heuristic scheduler type selected defaulting to basic "
                "list scheduler.");
