@@ -94,6 +94,16 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   enumBestSched_ = NULL;
   bestSched = bestSched_ = NULL;
 
+	//TODO: CHIPPIE: Abort if all 3 algorithms are disabled.
+	/*
+	 * Algorithm run order:
+	 * 1) Heuristic
+	 * 2) ACO
+	 * 3) Branch & Bound
+	 * 
+	 * Each of these 3 algorithms can be individually disabled. (TODO: CHIPPIE)
+	 */
+
   Logger::Info("---------------------------------------------------------------"
                "------------");
   Logger::Info("Processing DAG %s with %d insts and max latency %d.",
@@ -136,8 +146,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   if (lstSched == NULL)
     Logger::Fatal("Out of memory.");
 
-  //TODO: CHIPPIE: Add the RUN_ACO_SCHEDULER flag check here, and then run ACO?
-
   lstSchdulr = AllocHeuristicScheduler_(); //TODO: CHIPPIE: This one currently calls the heuristic allocator for the ACO scheduler. Need to move that up here, and run ACO anyway, if ACO is enabled...
 
   //TODO: CHIPPIE: Add the RUN_HEURISTIC_SCHEDULER check here first? Do we WANT such a check?
@@ -158,7 +166,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     Logger::Info("Heuristic_Time %d", hurstcTime);
 
 #ifdef IS_DEBUG_SLIL_PRINTOUT
-  //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler.
   if (OPTSCHED_gPrintSpills) {
     const auto &slilVector = this->GetSLIL_();
     for (int j = 0; j < slilVector.size(); j++) {
@@ -185,7 +192,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 
   InstCount hurstcExecCost;
   Config &schedIni = SchedulerOptions::getInstance();
-  if (!schedIni.GetBool("USE_ACO", false)) {
+  if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
     CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
   } else {
     CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
@@ -323,9 +330,9 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   Logger::Info("Sched LB = %d, Sched UB = %d", schedLwrBound_, schedUprBound_);
 #endif
 
-  if (isLstOptml == false) {
+  if (isLstOptml == false) { //TODO: CHIPPIE: Will need to work the B&B enable flag somewhere in here.
     dataDepGraph_->SetHard(true);
-    rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
+    rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
     Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
 
     if (hurstcTime > 0) {
@@ -529,7 +536,7 @@ FUNC_RESULT SchedRegion::Optimize_(Milliseconds startTime,
 
   InstCount initCost = bestCost_;
   enumrtr = AllocEnumrtr_(lngthTimeout);
-  rslt = Enumerate_(startTime, rgnTimeout, lngthTimeout);
+  rslt = Enumerate_(startTime, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: Actually runs the Branch and Bound algorithm.
 
   Milliseconds solnTime = Utilities::GetProcessorTime() - startTime;
 
