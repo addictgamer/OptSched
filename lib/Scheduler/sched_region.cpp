@@ -79,9 +79,9 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     InstCount &hurstcSchedLngth, InstSchedule *&bestSched, bool filterByPerp,
     const BLOCKS_TO_KEEP blocksToKeep) {
   ConstrainedScheduler *lstSchdulr;
-  ConstrainedScheduler *acoSchdulr; //TODO: CHIPPIE: Need to free this... //TODO: CHIPPIE: Is this the right datatype?
+  ConstrainedScheduler *acoSchdulr;
   InstSchedule *lstSched = NULL;
-  InstSchedule *acoSched = NULL; //TODO: CHIPPIE: Need to free this... //TODO: CHIPPIE: Is this the right datatype?
+  InstSchedule *acoSched = NULL;
   FUNC_RESULT rslt = RES_SUCCESS;
   Milliseconds hurstcTime = 0;
   Milliseconds boundTime = 0;
@@ -407,6 +407,12 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   }
 
   delete lstSchdulr;
+  if (run_aco) {
+    delete acoSchdulr;
+    if (bestSched != acoSched) {
+      delete acoSched;
+    }
+  }
   if (bestSched != lstSched)
     delete lstSched;
   if (enumBestSched_ != NULL && bestSched != enumBestSched_)
