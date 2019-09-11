@@ -94,6 +94,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   enumBestSched_ = NULL;
   bestSched = bestSched_ = NULL;
 
+  bool run_heur = SchedulerOptions::getInstance().GetBool("HEUR_ENABLED");
+  bool run_aco = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
+  bool run_bb = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
+
 	//TODO: CHIPPIE: Abort if all 3 algorithms are disabled.
 	/*
 	 * Algorithm run order:
@@ -267,7 +271,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   // LLVM_DEBUG(dbgs() << " *** LLVM_DEBUG BLARG *** \n");
   // Logger::Info(" *** LOGGER INFO BLARG *** \n");
 
-  bool run_aco = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
   if (run_aco) {
     cout << "TODO: ACO Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
     acoStart = Utilities::GetProcessorTime();
