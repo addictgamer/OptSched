@@ -89,6 +89,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   Milliseconds vrfyTime = 0;
   Milliseconds acoTime = 0;
   Milliseconds acoStart = 0;
+  Milliseconds boundStart;
 
   enumCrntSched_ = NULL;
   enumBestSched_ = NULL;
@@ -185,7 +186,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     }
   #endif
 
-    Milliseconds boundStart = Utilities::GetProcessorTime();
+    boundStart = Utilities::GetProcessorTime();
     hurstcSchedLngth_ = lstSched->GetCrntLngth(); //TODO: CHIPPIE: Need to do this both for ACO and the HEURISTIC scheduler.
     bestSchedLngth_ = hurstcSchedLngth_;
     assert(bestSchedLngth_ >= schedLwrBound_);
@@ -422,7 +423,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   }
 
   delete lstSchdulr;
-  if (run_aco) {
+  if (run_aco_sched) {
     delete acoSchdulr;
     if (bestSched != acoSched) {
       delete acoSched;
