@@ -327,7 +327,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     bestSched = bestSched_ = lstSched; //TODO: CHIPPIE: Don't assign...check if better and replace.
     */
 
-    //TODO: CHIPPIE: There's a whole bunch of other stuff that the old combined heuristic-aco scheduler code has...need to copy all of that??
+    //TODO: CHIPPIE: There's some other stuff that the old combined heuristic-aco scheduler code has...what of that needs to be copied, and how does it need to be modified?
   } else {
     cout << "TODO: ACO Scheduler is not enabled.\n"; //TODO: CHIPPIE: Remove this when done debugging.
   }
@@ -339,39 +339,51 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   Logger::Info("Sched LB = %d, Sched UB = %d", schedLwrBound_, schedUprBound_);
 #endif
 
-  if (isLstOptml == false) { //TODO: CHIPPIE: Will need to work the B&B enable flag somewhere in here.
-    dataDepGraph_->SetHard(true);
-    rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
-    Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
+  if (run_bb_sched) {
+    cout << "TODO: BB scheduler is enabled.\n";
+    if (true == run_heur_sched && isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like:
+                               //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
 
-    if (hurstcTime > 0) {
-      enumTime /= hurstcTime;
-      stats::enumerationToHeuristicTimeRatio.Record(enumTime);
+
+                               //TODO: CHIPPIE: ALSO. The run_aco_sched block will need to do the same sort of check...
+      cout << "TODO: Running BB scheduler...\n";
+      dataDepGraph_->SetHard(true);
+      rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
+      Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
+
+      if (hurstcTime > 0) {
+        enumTime /= hurstcTime;
+        stats::enumerationToHeuristicTimeRatio.Record(enumTime);
+      }
+
+      if (bestCost_ < hurstcCost_) {
+        assert(enumBestSched_ != NULL);
+        bestSched = bestSched_ = enumBestSched_;
+  #ifdef IS_DEBUG_PRINT_SCHEDS
+        enumBestSched_->Print(Logger::GetLogStream(), "Optimal");
+  #endif
+      }
+    } else if (rgnTimeout == 0) {
+      Logger::Info(
+          "Bypassing optimal scheduling due to zero time limit with cost %d",
+          bestCost_);
+    } else {
+      Logger::Info("The list schedule of length %d and cost %d is optimal.",
+                  bestSchedLngth_, bestCost_);
     }
 
-    if (bestCost_ < hurstcCost_) {
-      assert(enumBestSched_ != NULL);
-      bestSched = bestSched_ = enumBestSched_;
-#ifdef IS_DEBUG_PRINT_SCHEDS
-      enumBestSched_->Print(Logger::GetLogStream(), "Optimal");
-#endif
+    //TODO: CHIPPIE: Should this also be part of the BB_ENABLED flag? Or does it need to always run regardless?
+    if (rgnTimeout != 0) {
+      bool optimalSchedule = isLstOptml || (rslt == RES_SUCCESS); //TODO: CHIPPIE: Looks like it is, since the last rslt comes from the bb call up a few dozen lines, rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
+      Logger::Info("Best schedule for DAG %s has cost %d and length %d. The "
+                  "schedule is %s",
+                  dataDepGraph_->GetDagID(), bestCost_, bestSchedLngth_,
+                  optimalSchedule ? "optimal" : "not optimal");
     }
-  } else if (rgnTimeout == 0) {
-    Logger::Info(
-        "Bypassing optimal scheduling due to zero time limit with cost %d",
-        bestCost_);
-  } else {
-    Logger::Info("The list schedule of length %d and cost %d is optimal.",
-                 bestSchedLngth_, bestCost_);
   }
 
-  if (rgnTimeout != 0) {
-    bool optimalSchedule = isLstOptml || (rslt == RES_SUCCESS);
-    Logger::Info("Best schedule for DAG %s has cost %d and length %d. The "
-                 "schedule is %s",
-                 dataDepGraph_->GetDagID(), bestCost_, bestSchedLngth_,
-                 optimalSchedule ? "optimal" : "not optimal");
-  }
+  //TODO: CHIPPIE: Everything hereafter, should it run for _all_ of the schedulers? Regardless of which ones are enabled?
+  //I.e. are the following blocks of code BB specific? (Doesn't look it...)
 
 #ifdef IS_DEBUG_PRINT_PERP_AT_EACH_STEP
   Logger::Info("Printing PERP at each step in the schedule.");
@@ -414,23 +426,26 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 
   dataDepGraph_->SetFinalBounds(finalLwrBound, finalUprBound);
 
-  FinishOptml_();
+  FinishOptml_(); //TODO: CHIPPIE: Everything looks non-BB-specific except this? Maybe?
 
+  //TODO: CHIPPIE: Need to make this an up-to 3-way comparison since ACO has now entered the mix as a separate scheduler.
   bool tookBest = ChkSchedule_(bestSched, lstSched);
   if (tookBest == false) {
     bestCost_ = hurstcCost_;
     bestSchedLngth_ = hurstcSchedLngth_;
   }
 
-  delete lstSchdulr;
+  if (run_heur_sched){
+    delete lstSchdulr;
+    if (bestSched != lstSched)
+      delete lstSched;
+  }
   if (run_aco_sched) {
     delete acoSchdulr;
     if (bestSched != acoSched) {
       delete acoSched;
     }
   }
-  if (bestSched != lstSched)
-    delete lstSched;
   if (enumBestSched_ != NULL && bestSched != enumBestSched_)
     delete enumBestSched_;
   if (enumCrntSched_ != NULL)
