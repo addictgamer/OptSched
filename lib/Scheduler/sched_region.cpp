@@ -100,7 +100,13 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   bool run_aco_sched = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
   bool run_bb_sched = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
 
-	//TODO: CHIPPIE: Abort if all 3 algorithms are disabled.
+  if (false == run_heur_sched && false == run_aco_sched && false == run_bb_sched)
+  {
+    //Abort if all 3 algorithms are disabled.
+    cout << "TODO: Descriptive error message here saying that there must be at least one scheduler enabled.\n";
+    return RES_ERROR;
+  }
+
 	/*
 	 * Algorithm run order:
 	 * 1) Heuristic
@@ -340,15 +346,23 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 #endif
 
   if (run_bb_sched) {
+    //TODO: CHIPPIE: What do if both the heuristic and the ACO scheduler are disabled?
+
     cout << "TODO: BB scheduler is enabled.\n";
-    if (true == run_heur_sched && isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like:
+    //isLstOptml = false; //TODO: CHIPPIE: Remove this when done debugging. //Yes, this flow works correctly.
+    if (false == run_heur_sched || isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like:
                                //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
+                               //ALSO: Need to change the first part to something more like:
+                               //if ((!run_heur_sched && !run_aco_sched) || ...) //then we have to run the BB algorithm.
 
 
                                //TODO: CHIPPIE: ALSO. The run_aco_sched block will need to do the same sort of check...
       cout << "TODO: Running BB scheduler...\n";
       dataDepGraph_->SetHard(true);
       rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
+      //TODO: CHIPPIE: Also. It currently fails with upper bounds if the heuristic and ACO are disabled...two observations:
+      // * there should be some sort of initialization for that probably.
+      // * ACO will need to be updated to set the upper bound properly too, since this issue occurs even if ACO is enabled (with the present code)
       Milliseconds enumTime = Utilities::GetProcessorTime() - enumStart;
 
       if (hurstcTime > 0) {
@@ -457,7 +471,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   hurstcSchedLngth = hurstcSchedLngth_;
   // (Chris): Experimental. Discard the schedule based on sched.ini setting.
   if (spillCostFunc_ == SCF_SLIL) {
-    bool optimal = isLstOptml || (rslt == RES_SUCCESS);
+    bool optimal = isLstOptml || (rslt == RES_SUCCESS); //TODO: CHIPPIE: This also needs to be updated to account for the heuristic enabling/disabled, and the splitoff of ACO from it.
     if ((blocksToKeep == BLOCKS_TO_KEEP::ZERO_COST && bestCost != 0) ||
         (blocksToKeep == BLOCKS_TO_KEEP::OPTIMAL && !optimal) ||
         (blocksToKeep == BLOCKS_TO_KEEP::IMPROVED &&
@@ -469,7 +483,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
       return rslt;
     }
   }
-#if defined(IS_DEBUG_COMPARE_SLIL_BB)
+#if defined(IS_DEBUG_COMPARE_SLIL_BB) //TODO: CHIPPIE: This block will likewise need to be updated...I note that there are some references to isLstOptml, which will need to be updated if the heuristic scheduler is disabled, and also may need to be changed to account for ACO.
   {
     const auto &status = [&]() {
       switch (rslt) {
@@ -536,7 +550,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   Logger::Info("Final spill cost is %d for DAG %s.", bestSched_->GetSpillCost(),
                dataDepGraph_->GetDagID());
 #endif
-#if defined(IS_DEBUG_PRINT_PEAK_FOR_ENUMERATED)
+#if defined(IS_DEBUG_PRINT_PEAK_FOR_ENUMERATED)//TODO: CHIPPIE: This block will likewise need to be updated...I note that there are some references to isLstOptml, which will need to be updated if the heuristic scheduler is disabled, and also may need to be changed to account for ACO.
   if (!isLstOptml) {
     InstCount maxSpillCost = 0;
     for (int i = 0; i < dataDepGraph_->GetInstCnt(); ++i) {
