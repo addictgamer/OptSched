@@ -73,7 +73,7 @@ void SchedRegion::CmputAbslutUprBound_() {
   abslutSchedUprBound_ = dataDepGraph_->GetAbslutSchedUprBound();
 }
 
-FUNC_RESULT SchedRegion::FindOptimalSchedule(
+FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functions as private functions in the class.
     Milliseconds rgnTimeout, Milliseconds lngthTimeout, bool &isLstOptml,
     InstCount &bestCost, InstCount &bestSchedLngth, InstCount &hurstcCost,
     InstCount &hurstcSchedLngth, InstSchedule *&bestSched, bool filterByPerp,
@@ -100,7 +100,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   bool run_aco_sched = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
   bool run_bb_sched = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
 
-  if (false == run_heur_sched && false == run_aco_sched && false == run_bb_sched)
+  if (false == run_heur_sched && false == run_aco_sched && false == run_bb_sched) //TODO: CHIPPIE: Return error if ACO & The heuristic are disabled.
   {
     //Abort if all 3 algorithms are disabled.
     cout << "TODO: Descriptive error message here saying that there must be at least one scheduler enabled.\n";
@@ -238,7 +238,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 
     // (Chris): If the cost function is SLIL, then the list schedule is considered
     // optimal if PERP is 0.
-    if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) {
+    if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) { //TODO: Need to check if heuristic is optimal before ACO. And then check again after ACO.
+    //TODO: To determine if the list is optimal, need to do the lower bound between list and aco.
       const InstCount *regPressures = nullptr;
       auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
       InstCount sumPerp = 0;
@@ -350,7 +351,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 
     cout << "TODO: BB scheduler is enabled.\n";
     //isLstOptml = false; //TODO: CHIPPIE: Remove this when done debugging. //Yes, this flow works correctly.
-    if (false == run_heur_sched || isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like:
+    if (false == run_heur_sched || isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like: //(Call it initial schedule (for B&B))
                                //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
                                //ALSO: Need to change the first part to something more like:
                                //if ((!run_heur_sched && !run_aco_sched) || ...) //then we have to run the BB algorithm.
