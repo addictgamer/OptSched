@@ -100,10 +100,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   bool run_aco_sched = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
   bool run_bb_sched = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
 
-  if (false == run_heur_sched && false == run_aco_sched && false == run_bb_sched) //TODO: CHIPPIE: Return error if ACO & The heuristic are disabled.
+  if (false == run_heur_sched && false == run_aco_sched) //TODO: CHIPPIE: Return error if ACO & the heuristic are disabled. Don't care about B&B, it may be disabled, or it may not, in any combination. As long as at least one of the heuristic or ACO are enabled.
   {
-    //Abort if all 3 algorithms are disabled.
-    cout << "TODO: Descriptive error message here saying that there must be at least one scheduler enabled.\n";
+    //Abort if ACO and heuristic algorithms are disabled.
+    cout << "TODO: Descriptive error message here saying that there must be at least one of the ACO or Heuristic scheduler enabled.\n";
     return RES_ERROR;
   }
 
@@ -113,7 +113,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 	 * 2) ACO
 	 * 3) Branch & Bound
 	 * 
-	 * Each of these 3 algorithms can be individually disabled. (TODO: CHIPPIE)
+	 * Each of these 3 algorithms can be individually disabled, but one of the heuristic or ACO must be enabled. (TODO: CHIPPIE)
 	 */
 
   Logger::Info("---------------------------------------------------------------"
@@ -284,7 +284,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   // LLVM_DEBUG(dbgs() << " *** LLVM_DEBUG BLARG *** \n");
   // Logger::Info(" *** LOGGER INFO BLARG *** \n");
 
-  if (run_aco_sched) {
+  if (run_aco_sched && false == isLstOptml) { //TODO: CHIPPIE: If the Heuristic algorithm already produced the optimal result, don't run ACO or B&B.
+    //TODO: CHIPPIE: If ACO's schedule is optimal, set the best schedule to that (and don't run B&B).
+    //TODO: CHIPPIE: If neither ACO's or the Heuristic's schedule is optimal, compare ACO's result with the heuristic's and then set the initial_schedule to that.
+
     cout << "TODO: ACO Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
     acoStart = Utilities::GetProcessorTime();
     acoSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
