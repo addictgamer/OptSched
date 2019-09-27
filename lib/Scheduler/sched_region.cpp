@@ -469,7 +469,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     cout << "TODO: BB scheduler is enabled.\n";
     //isLstOptml = false; //TODO: CHIPPIE: Remove this when done debugging. //Yes, this flow works correctly.
-    if (false == run_heur_sched || isLstOptml == false) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like: //(Call it initial schedule (for B&B)) //TODO: Add a isScheduleOptimal flag.
+    if (false == initialScheduleOptimal) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like: //(Call it initial schedule (for B&B)) //TODO: Add a isScheduleOptimal flag.
                                //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
                                //ALSO: Need to change the first part to something more like:
                                //if ((!run_heur_sched && !run_aco_sched) || ...) //then we have to run the BB algorithm.
