@@ -264,7 +264,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     pheremone_[i] = initialValue_;
   std::cerr << "initialValue_" << initialValue_ << std::endl;
 
-  InstSchedule *bestSchedule = NULL;
+  InstSchedule *bestSchedule = NULL; //TODO: CHIPPIE: Set it to the best found in heuristic (if one is available)?
   Config &schedIni = SchedulerOptions::getInstance();
   int noImprovementMax = schedIni.GetInt("ACO_STOP_ITERATIONS");
   int noImprovement = 0; // how many iterations with no improvement

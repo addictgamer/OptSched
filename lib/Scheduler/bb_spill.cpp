@@ -768,7 +768,7 @@ void BBWithSpill::UnschdulInst(SchedInstruction *inst, InstCount cycleNum,
 }
 /*****************************************************************************/
 
-void BBWithSpill::FinishHurstc_() {
+void BBWithSpill::FinishHurstc_() { //TODO: CHIPPIE: Add for ACO as well.
 
 #ifdef IS_DEBUG_BBSPILL_COST
   stats::traceCostLowerBound.Record(costLwrBound_);

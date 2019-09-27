@@ -207,6 +207,11 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     assert(bestSchedLngth_ >= schedLwrBound_);
     bestSched = bestSched_ = lstSched;
 
+    if (rgnTimeout == 0) //TODO: Do this after ACO too if the Heuristic was not run.
+      costLwrBound_ = CmputCostLwrBound();
+    else
+      CmputLwrBounds_(false);
+
     //TODO: CHIPPIE: I don't like doing this before checking if it's optimal, in ACO...
     InstCount hurstcExecCost;
     Config &schedIni = SchedulerOptions::getInstance();
@@ -221,7 +226,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     boundTime = Utilities::GetProcessorTime() - boundStart;
     stats::boundComputationTime.Record(boundTime); //TODO: CHIPPIE: Does ACO need this too?
 
-    FinishHurstc_(); //TODO: CHIPPIE: Need one for ACO?
+    FinishHurstc_(); //TODO: CHIPPIE: Need one for ACO. Will need to also add some new statistic for the ACO counterparts.
 
     //  #ifdef IS_DEBUG_SOLN_DETAILS_1
     Logger::Info(
@@ -360,6 +365,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     isACOOptimal = CmputUprBounds_(acoSched, false);
     boundTime = Utilities::GetProcessorTime() - boundStart;
     stats::boundComputationTime.Record(boundTime); //TODO: CHIPPIE: Need this?
+
+    //TODO: CHIPPIE: ACO should not change the upper bound unless it is better (i.e. lower) than the heuristic's.
 
     if (isACOOptimal)
     {
