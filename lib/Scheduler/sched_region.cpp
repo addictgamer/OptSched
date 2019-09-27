@@ -433,7 +433,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
     costLwrBound_ = CmputCostLwrBound();
   else
-    CmputLwrBounds_(false);
+    CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
   assert(schedLwrBound_ <= initialSched->GetCrntLngth());
 
   // Step #4: Find the optimal schedule if the heuristc was not optimal.
