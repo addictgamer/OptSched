@@ -207,10 +207,12 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     assert(bestSchedLngth_ >= schedLwrBound_);
     bestSched = bestSched_ = lstSched;
 
-    if (rgnTimeout == 0) //TODO: Do this after ACO too if the Heuristic was not run.
+    // Step #2: Compute the lower bounds and cost upper bound.
+    if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags tasks.
       costLwrBound_ = CmputCostLwrBound();
     else
-      CmputLwrBounds_(false);
+      CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
+    assert(schedLwrBound_ <= initialSched->GetCrntLngth());
 
     //TODO: CHIPPIE: I don't like doing this before checking if it's optimal, in ACO...
     InstCount hurstcExecCost;
@@ -352,6 +354,17 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
       isACOOptimal = true;
 
+    //If the Heuristic schedule did not compute the lower bound, need to do it now. //TODO: CHIPPIE: Can it be computed prior to running either the heuristic or ACO scheduler?
+    if (false == run_heur_sched)
+    {
+      //Run initial lower-bound computation.
+      if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
+        costLwrBound_ = CmputCostLwrBound();
+      else
+        CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
+      assert(schedLwrBound_ <= initialSched->GetCrntLngth());
+    }
+
     //TODO: CHIPPIE: Add in the upper bound code here.
 
     InstCount ACOExecCost;
@@ -434,14 +447,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   } else {
     cout << "TODO: ACO Scheduler is not enabled.\n"; //TODO: CHIPPIE: Remove this when done debugging.
   }
-
-  // Step #2: Compute the lower bounds and cost upper bound. //TODO: CHIPPIE: Make this run after both ACO and the Heuristic, using the initial schedule instead of the lstSchedule?
-  //TODO: CHIPPIE: Or, refactor this into a helper function that just takes a schedule argument and does its thing?
-  if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
-    costLwrBound_ = CmputCostLwrBound();
-  else
-    CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
-  assert(schedLwrBound_ <= initialSched->GetCrntLngth());
 
   // Step #4: Find the optimal schedule if the heuristc was not optimal.
   Milliseconds enumStart = Utilities::GetProcessorTime();
