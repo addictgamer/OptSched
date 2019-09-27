@@ -83,9 +83,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   InstSchedule *lstSched = NULL;
   InstSchedule *acoSched = NULL;
   llvm::opt_sched::InstCount ACOScheduleLength; //TODO: CHIPPIE: Initialization value(s)? //TODO: Chippie: What is up with the similarly-named variable in the header file? InstCount acoScheduleLength_; in sched_region.h
+  InstCount ACOScheduleCost;
   bool isACOOptimal = false; //TODO: CHIPPIE: Where should this go? Should it become an additional parameter? Why is isLstOptml a reference parameter? Or don't add it as a parameter -- just rename the existing one???
-	InstSchedule *initialSched = NULL;
-	bool initialScheduleOptimal = false;
+  InstSchedule *initialSched = NULL;
+  bool initialScheduleOptimal = false;
   llvm::opt_sched::InstCount initialScheduleLength; //TODO: CHIPPIE: Initialization value(s)?
   FUNC_RESULT rslt = RES_SUCCESS;
   Milliseconds hurstcTime = 0;
@@ -216,8 +217,9 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     }
     hurstcCost_ = lstSched->GetCost();
     isLstOptml = CmputUprBounds_(lstSched, false);
+
     boundTime = Utilities::GetProcessorTime() - boundStart;
-    stats::boundComputationTime.Record(boundTime);
+    stats::boundComputationTime.Record(boundTime); //TODO: CHIPPIE: Does ACO need this too?
 
     FinishHurstc_(); //TODO: CHIPPIE: Need one for ACO?
 
@@ -241,6 +243,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     if (isLstOptml)
     {
       initialScheduleOptimal = true;
+      cout << "[CHIPPIE: DEBUG] ***** HEURISTIC SCHEDULE IS OPTIMAL *****\n"; //TODO: CHIPPIE: REMOVE DEBUGGING STATEMENT.
     }
 
     //TODO: CHIPPIE: Does ACO need this? Don't think so...
@@ -339,42 +342,73 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     boundStart = Utilities::GetProcessorTime(); //TODO: CHIPPIE: Need this?
     acoScheduleLength_ = acoSched->GetCrntLngth();
+    ACOScheduleCost = acoSched->GetCost(); //TODO: CHIPPIE: Compare non-optimal schedules with this.
 
     if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
       isACOOptimal = true;
+
+    //TODO: CHIPPIE: Add in the upper bound code here.
+
+    InstCount ACOExecCost;
+    Config &schedIni = SchedulerOptions::getInstance();
+    if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
+      CmputNormCost_(acoSched, CCM_DYNMC, ACOExecCost, true);
+    } else {
+      CmputNormCost_(acoSched, CCM_STTC, ACOExecCost, false);
+    }
+    ACOScheduleCost = acoSched->GetCost();
+    isACOOptimal = CmputUprBounds_(acoSched, false);
+    boundTime = Utilities::GetProcessorTime() - boundStart;
+    stats::boundComputationTime.Record(boundTime); //TODO: CHIPPIE: Need this?
+
+    if (isACOOptimal)
+    {
+      cout << "[CHIPPIE: DEBUG] ***** ACO SCHEDULE IS OPTIMAL *****\n"; //TODO: CHIPPIE: REMOVE DEBUGGING STATEMENT.
+    }
 
     //There are 3 possible situations:
     // A) Heuristic was never run. In that case, just use ACO and run with its results, into B&B.
     // B) Heuristic was not optimal, but ACO is. In that case, just use ACO's result for the initial schedule AND the best schedule. And don't run B&B, exit the function (since B&B only runs if the optimal schedule was not found).
     // C) Neither scheduler was optimal. In that case, compare the two schedules and use the one that's better as the input (initialSched) for B&B.
 
-    if (false == run_heur_sched)
+    if (false == run_heur_sched || isACOOptimal || ACOScheduleCost > hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
     {
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
       initialSched = acoSched;
-      initialScheduleLength = hurstcSchedLngth_;
-      bestSchedLngth_ = hurstcSchedLngth_;
+      initialScheduleLength = ACOScheduleLength;
+      bestSchedLngth_ = initialScheduleLength;
       assert(bestSchedLngth_ >= schedLwrBound_);
-      bestSched = bestSched_ = lstSched;
+      bestSched = bestSched_ = acoSched;
+
+      if (isACOOptimal)
+      {
+        initialScheduleOptimal = true;
+      }
+      else
+      {
+        initialScheduleOptimal = false;
+      }
 
       //TODO: CHIPPIE: Not done with this portion?
       //In the original, the thing that came next was the heuristic lower bound computation. Then the heuristic upper bound computation. Or something liek that.
-
-      // InstCount hurstcExecCost;
-      // Config &schedIni = SchedulerOptions::getInstance();
-      // if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
-      //   CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
-      // } else {
-      //   CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
-      // }
-      // hurstcCost_ = lstSched->GetCost();
-      // isLstOptml = CmputUprBounds_(lstSched, false);
-      // boundTime = Utilities::GetProcessorTime() - boundStart;
-      // stats::boundComputationTime.Record(boundTime);
     }
+    else
+    {
+      //TODO: CHIPPIE: Find a way to do this better.
 
-    //TODO: CHIPPIE: More stuff to copy here? Such as computing the upper bounds?
+      //So, presently. To find if a schedule is optimal, that's done while computing the upper bound.
+      //Guess what? When the upper bound is calculated, it gets saved.
+      //So what happens if the ACO schedule should not be used, and instead the heuristic schedule should be used?
+      //Weeeeell...the compute upper bound code (and possibly other fragments, TODO: CHIPPIE: investigate the lower bound code)
+      //overwrites whatever the previous stored upper bound is.
+      //So if decide to go with the heuristic, then need to recalculate the initial schedule stuff, and the bounds, and TODO: CHIPPIE: determine if there are any other things that must be recalculated before entering B&B.
+
+      //TODO: CHIPPIE: Presently, I'm doing this right before B&B.
+    }
+    
+
+    //TODO: CHIPPIE: What if ACO is not the best?
 
     Logger::Info(
         "The ACO schedule is of length %d and spill cost %d. Tot cost = %d",
@@ -410,7 +444,16 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 #endif
 
   if (run_bb_sched) {
-    //TODO: CHIPPIE: What do if both the heuristic and the ACO scheduler are disabled?
+    //Make sure the bounds information are all correct with the chosen initial schedule.
+    //A) Upper bound.
+    Config &schedIni = SchedulerOptions::getInstance(); //TODO: CHIPPIE: Instead of (potentially) calling this up to like 3 times, make this global to the function, up at the top.
+    InstCount ACOExecCost;
+    if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
+      CmputNormCost_(initialSched, CCM_DYNMC, ACOExecCost, true);
+    } else {
+      CmputNormCost_(initialSched, CCM_STTC, ACOExecCost, false);
+    }
+    CmputUprBounds_(initialSched, false);
 
     cout << "TODO: BB scheduler is enabled.\n";
     //isLstOptml = false; //TODO: CHIPPIE: Remove this when done debugging. //Yes, this flow works correctly.
