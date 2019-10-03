@@ -445,7 +445,9 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     //TODO: CHIPPIE: Also, there's a bunch of debug prints and stuff. What do we want done here too?
   } else {
-    cout << "TODO: ACO Scheduler is not enabled.\n"; //TODO: CHIPPIE: Remove this when done debugging.
+    if (run_aco_sched) {
+      cout << "TODO: ACO Scheduler not run, but enabled (heuristic is optimal!).\n"; //TODO: CHIPPIE: Remove this when done debugging.
+    }
   }
 
   // Step #4: Find the optimal schedule if the heuristc was not optimal.
@@ -507,7 +509,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     //TODO: CHIPPIE: Should this also be part of the BB_ENABLED flag? Or does it need to always run regardless?
     if (rgnTimeout != 0) {
-      bool optimalSchedule = isLstOptml || (rslt == RES_SUCCESS); //TODO: CHIPPIE: Looks like it is, since the last rslt comes from the bb call up a few dozen lines, rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
+      bool optimalSchedule = initialScheduleOptimal || (rslt == RES_SUCCESS); //TODO: CHIPPIE: Looks like it is, since the last rslt comes from the bb call up a few dozen lines, rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout);
       Logger::Info("Best schedule for DAG %s has cost %d and length %d. The "
                   "schedule is %s",
                   dataDepGraph_->GetDagID(), bestCost_, bestSchedLngth_,
@@ -573,7 +575,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     if (bestSched != lstSched)
       delete lstSched;
   }
-  if (run_aco_sched) {
+  if (run_aco_sched && !isLstOptml) {
+    //If the heuristic schedule was optimal, then ACO was not run and there's nothing to delete.
     delete acoSchdulr;
     if (bestSched != acoSched) {
       delete acoSched;
