@@ -102,11 +102,11 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   bestSched = bestSched_ = NULL;
 
   //TODO: CHIPPIE: Perhaps rename these to match the flag?
-  bool run_heur_sched = SchedulerOptions::getInstance().GetBool("HEUR_ENABLED");
-  bool run_aco_sched = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
-  bool run_bb_sched = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
+  bool heuristicSchedulerEnabled = SchedulerOptions::getInstance().GetBool("HEUR_ENABLED");
+  bool acoSchedulerEnabled = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
+  bool bbSchedulerEnabled = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
 
-  if (false == run_heur_sched && false == run_aco_sched) //TODO: CHIPPIE: Return error if ACO & the heuristic are disabled. Don't care about B&B, it may be disabled, or it may not, in any combination. As long as at least one of the heuristic or ACO are enabled.
+  if (false == heuristicSchedulerEnabled && false == acoSchedulerEnabled) //TODO: CHIPPIE: Return error if ACO & the heuristic are disabled. Don't care about B&B, it may be disabled, or it may not, in any combination. As long as at least one of the heuristic or ACO are enabled.
   {
     //Abort if ACO and heuristic algorithms are disabled.
     cout << "TODO: Descriptive error message here saying that there must be at least one of the ACO or Heuristic scheduler enabled.\n";
@@ -160,7 +160,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   CmputAbslutUprBound_();
   schedLwrBound_ = dataDepGraph_->GetSchedLwrBound();
 
-  if (run_heur_sched) {
+  if (heuristicSchedulerEnabled) {
     cout << "TODO: Heuristic Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
     Milliseconds hurstcStart = Utilities::GetProcessorTime();
     lstSched = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
@@ -302,7 +302,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   // LLVM_DEBUG(dbgs() << " *** LLVM_DEBUG BLARG *** \n");
   // Logger::Info(" *** LOGGER INFO BLARG *** \n");
 
-  if (run_aco_sched && false == initialScheduleOptimal) { //TODO: CHIPPIE: If the Heuristic algorithm already produced the optimal result, don't run ACO or B&B.
+  if (acoSchedulerEnabled && false == initialScheduleOptimal) { //TODO: CHIPPIE: If the Heuristic algorithm already produced the optimal result, don't run ACO or B&B.
     //TODO: CHIPPIE: If ACO's schedule is optimal, set the best schedule to that (and don't run B&B).
     //TODO: CHIPPIE: If neither ACO's or the Heuristic's schedule is optimal, compare ACO's result with the heuristic's and then set the initial_schedule to that.
 
@@ -319,7 +319,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     if (rslt != RES_SUCCESS) {
       Logger::Info("ACO scheduling failed");
-      if (run_heur_sched)
+      if (heuristicSchedulerEnabled
+	)
       {
         delete lstSchdulr;
         delete lstSched;
@@ -355,7 +356,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       isACOOptimal = true;
 
     //If the Heuristic schedule did not compute the lower bound, need to do it now. //TODO: CHIPPIE: Can it be computed prior to running either the heuristic or ACO scheduler?
-    if (false == run_heur_sched)
+    if (false == heuristicSchedulerEnabled
+)
     {
       //Run initial lower-bound computation.
       if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
@@ -391,7 +393,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     // B) Heuristic was not optimal, but ACO is. In that case, just use ACO's result for the initial schedule AND the best schedule. And don't run B&B, exit the function (since B&B only runs if the optimal schedule was not found).
     // C) Neither scheduler was optimal. In that case, compare the two schedules and use the one that's better as the input (initialSched) for B&B.
 
-    if (false == run_heur_sched || isACOOptimal || ACOScheduleCost > hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
+    if (false == heuristicSchedulerEnabled || isACOOptimal || ACOScheduleCost > hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
     {
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
@@ -426,7 +428,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
       //TODO: CHIPPIE: Presently, I'm doing this right before B&B.
     }
-    
 
     //TODO: CHIPPIE: What if ACO is not the best?
 
@@ -445,7 +446,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     //TODO: CHIPPIE: Also, there's a bunch of debug prints and stuff. What do we want done here too?
   } else {
-    if (run_aco_sched) {
+    if (acoSchedulerEnabled) {
       cout << "TODO: ACO Scheduler not run, but enabled (heuristic is optimal!).\n"; //TODO: CHIPPIE: Remove this when done debugging.
     }
   }
@@ -457,7 +458,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   Logger::Info("Sched LB = %d, Sched UB = %d", schedLwrBound_, schedUprBound_);
 #endif
 
-  if (run_bb_sched) {
+  if (bbSchedulerEnabled) {
     //Make sure the bounds information are all correct with the chosen initial schedule.
     //A) Upper bound.
     Config &schedIni = SchedulerOptions::getInstance(); //TODO: CHIPPIE: Instead of (potentially) calling this up to like 3 times, make this global to the function, up at the top.
@@ -474,10 +475,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     if (false == initialScheduleOptimal) { //TODO: CHIPPIE: Should do a similar check for if ACO is optimal. This should be more generic, like: //(Call it initial schedule (for B&B)) //TODO: Add a isScheduleOptimal flag.
                                //if (isCurrentBestScheduleOptimal == false) instead of explicitly looking at the list schedule.
                                //ALSO: Need to change the first part to something more like:
-                               //if ((!run_heur_sched && !run_aco_sched) || ...) //then we have to run the BB algorithm.
+                               //if ((!heuristicSchedulerEnabled && !acoSchedulerEnabled) || ...) //then we have to run the BB algorithm.
 
 
-                               //TODO: CHIPPIE: ALSO. The run_aco_sched block will need to do the same sort of check...
+                               //TODO: CHIPPIE: ALSO. The acoSchedulerEnabled block will need to do the same sort of check...
       cout << "TODO: Running BB scheduler...\n";
       dataDepGraph_->SetHard(true);
       rslt = Optimize_(enumStart, rgnTimeout, lngthTimeout); //TODO: CHIPPIE: This function will use the Branch and Bound algorithm.
@@ -570,12 +571,12 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     bestSchedLngth_ = hurstcSchedLngth_;
   }
 
-  if (run_heur_sched){
+  if (heuristicSchedulerEnabled){
     delete lstSchdulr;
     if (bestSched != lstSched)
       delete lstSched;
   }
-  if (run_aco_sched && !isLstOptml) {
+  if (acoSchedulerEnabled && !isLstOptml) {
     //If the heuristic schedule was optimal, then ACO was not run and there's nothing to delete.
     delete acoSchdulr;
     if (bestSched != acoSched) {
