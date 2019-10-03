@@ -78,8 +78,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     InstCount &bestCost, InstCount &bestSchedLngth, InstCount &hurstcCost,
     InstCount &hurstcSchedLngth, InstSchedule *&bestSched, bool filterByPerp,
     const BLOCKS_TO_KEEP blocksToKeep) {
-  ConstrainedScheduler *lstSchdulr;
-  ConstrainedScheduler *acoSchdulr;
+  ConstrainedScheduler *lstSchdulr = NULL;
+  ConstrainedScheduler *acoSchdulr = NULL;
   InstSchedule *lstSched = NULL;
   InstSchedule *acoSched = NULL;
   llvm::opt_sched::InstCount ACOScheduleLength; //TODO: CHIPPIE: Initialization value(s)? //TODO: Chippie: What is up with the similarly-named variable in the header file? InstCount acoScheduleLength_; in sched_region.h
@@ -214,14 +214,14 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
     assert(schedLwrBound_ <= initialSched->GetCrntLngth());
 
-    //TODO: CHIPPIE: I don't like doing this before checking if it's optimal, in ACO...
     InstCount hurstcExecCost;
     Config &schedIni = SchedulerOptions::getInstance();
-    if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
-      CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
-    } else {
-      CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
-    }
+    //TODO: CHIPPIE: I am going to disable the following, since ACO will no longer be run here, it's been split off into its own section. (I still don't get the point of this code? See my comment on the line below)
+    // if (!schedIni.GetBool("USE_ACO", false)) { //TODO: CHIPPIE: What does this flag do? Doesn't seem to actually disable ACO...
+    //   CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
+    // } else {
+    //   CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
+    // }
     hurstcCost_ = lstSched->GetCost();
     isLstOptml = CmputUprBounds_(lstSched, false);
 
@@ -571,17 +571,17 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     bestSchedLngth_ = hurstcSchedLngth_;
   }
 
-  if (heuristicSchedulerEnabled){
+  if (lstSchdulr) {
     delete lstSchdulr;
-    if (bestSched != lstSched)
+  }
+  if (NULL != lstSched && bestSched != lstSched) {
       delete lstSched;
   }
-  if (acoSchedulerEnabled && !isLstOptml) {
-    //If the heuristic schedule was optimal, then ACO was not run and there's nothing to delete.
+  if (acoSchdulr) {
     delete acoSchdulr;
-    if (bestSched != acoSched) {
-      delete acoSched;
-    }
+  }
+  if (NULL != acoSched && bestSched != acoSched) {
+    delete acoSched;
   }
   if (enumBestSched_ != NULL && bestSched != enumBestSched_)
     delete enumBestSched_;
