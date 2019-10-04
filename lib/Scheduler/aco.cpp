@@ -63,7 +63,7 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   int pheremone_size = (count_ + 1) * count_;
   pheremone_ = new pheremone_t[pheremone_size];
 
-  initialSchedule = NULL;
+  this->initialSchedule = NULL;
   if (initialSchedule)
   {
     this->initialSchedule = new InstSchedule(machineModel, dataDepGraph, vrfySched);

@@ -88,6 +88,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   InstSchedule *initialSched = NULL;
   bool initialScheduleOptimal = false;
   llvm::opt_sched::InstCount initialScheduleLength; //TODO: CHIPPIE: Initialization value(s)?
+  InstCount initialSchedCost;
   FUNC_RESULT rslt = RES_SUCCESS;
   Milliseconds hurstcTime = 0;
   Milliseconds boundTime = 0;
@@ -222,7 +223,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     // } else {
     //   CmputNormCost_(lstSched, CCM_STTC, hurstcExecCost, false);
     // }
-    hurstcCost_ = lstSched->GetCost();
+    initialSchedCost = hurstcCost_ = lstSched->GetCost();
     isLstOptml = CmputUprBounds_(lstSched, false);
 
     boundTime = Utilities::GetProcessorTime() - boundStart;
@@ -366,6 +367,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       
       bestSched = initialSched = acoSched;
       bestSchedLngth = initialScheduleLength = acoScheduleLength_;
+      bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: Rename the ACO variable to be consistent with the casing of the others...acoScheduleCost instead of ACOScheduleCost...
 
       assert(schedLwrBound_ <= initialSched->GetCrntLngth());
     }
@@ -379,7 +381,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     } else {
       CmputNormCost_(acoSched, CCM_STTC, ACOExecCost, false);
     }
-    ACOScheduleCost = acoSched->GetCost();
     isACOOptimal = CmputUprBounds_(acoSched, false);
     boundTime = Utilities::GetProcessorTime() - boundStart;
     stats::boundComputationTime.Record(boundTime); //TODO: CHIPPIE: Need this?
@@ -401,9 +402,9 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
       bestSched = bestSched_ = initialSched = acoSched;
-      bestSchedLngth_ = initialScheduleLength;
+      bestSchedLngth_ = initialScheduleLength = ACOScheduleLength;
       initialSched = acoSched;
-      initialScheduleLength = ACOScheduleLength;
+      bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: In this entire block...do I need the bestCost_ = <whatever>?
       assert(bestSchedLngth_ >= schedLwrBound_);
 
       if (isACOOptimal)
@@ -495,7 +496,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
         stats::enumerationToHeuristicTimeRatio.Record(enumTime);
       }
 
-      if (bestCost_ < hurstcCost_) {
+      if (bestCost_ < initialSchedCost) {
         assert(enumBestSched_ != NULL);
         bestSched = bestSched_ = enumBestSched_;
   #ifdef IS_DEBUG_PRINT_SCHEDS
@@ -507,7 +508,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
           "Bypassing optimal scheduling due to zero time limit with cost %d",
           bestCost_);
     } else {
-      Logger::Info("The list schedule of length %d and cost %d is optimal.",
+      Logger::Info("The initial schedule of length %d and cost %d is optimal.",
                   bestSchedLngth_, bestCost_);
     }
 
@@ -568,10 +569,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   FinishOptml_(); //TODO: CHIPPIE: Everything looks non-BB-specific except this? Maybe?
 
   //TODO: CHIPPIE: Need to make this an up-to 3-way comparison since ACO has now entered the mix as a separate scheduler.
-  bool tookBest = ChkSchedule_(bestSched, lstSched);
+  bool tookBest = ChkSchedule_(bestSched, initialSched);
   if (tookBest == false) {
-    bestCost_ = hurstcCost_;
-    bestSchedLngth_ = hurstcSchedLngth_;
+    bestCost_ = initialSchedCost;
+    bestSchedLngth_ = initialScheduleLength;
   }
 
   if (lstSchdulr) {
@@ -784,7 +785,7 @@ void SchedRegion::CmputLwrBounds_(bool useFileBounds) {
 
 bool SchedRegion::CmputUprBounds_(InstSchedule *lstSched, bool useFileBounds) {
   if (useFileBounds) {
-    hurstcCost_ = dataDepGraph_->GetFileCostUprBound();
+    hurstcCost_ = dataDepGraph_->GetFileCostUprBound(); //TODO: Do not hardcode to use the heuristic cost?
     hurstcCost_ -= GetCostLwrBound();
   }
 
