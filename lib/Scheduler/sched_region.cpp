@@ -313,7 +313,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       Logger::Fatal("Out of memory.");
     }
 
-    acoSchdulr = new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_);
+    acoSchdulr = new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_, initialSched, vrfySched_);
 
     rslt = acoSchdulr->FindSchedule(acoSched, this);
 

@@ -33,7 +33,8 @@ double RandDouble(double min, double max) {
 
 ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
                            MachineModel *machineModel, InstCount upperBound,
-                           SchedPriorities priorities)
+                           SchedPriorities priorities, InstSchedule* initialSchedule,
+                           bool vrfySched)
     : ConstrainedScheduler(dataDepGraph, machineModel, upperBound) {
   prirts_ = priorities;
   rdyLst_ = new ReadyList(dataDepGraph_, priorities);
@@ -61,6 +62,13 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   */
   int pheremone_size = (count_ + 1) * count_;
   pheremone_ = new pheremone_t[pheremone_size];
+
+  initialSchedule = NULL;
+  if (initialSchedule)
+  {
+    this->initialSchedule = new InstSchedule(machineModel, dataDepGraph, vrfySched);
+    this->initialSchedule->Copy(initialSchedule);
+  }
 }
 
 ACOScheduler::~ACOScheduler() {
@@ -264,7 +272,10 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     pheremone_[i] = initialValue_;
   std::cerr << "initialValue_" << initialValue_ << std::endl;
 
-  InstSchedule *bestSchedule = NULL; //TODO: CHIPPIE: Set it to the best found in heuristic (if one is available)?
+  InstSchedule *bestSchedule = initialSchedule;
+  if (bestSchedule) { //TODO: CHIPPIE: Should it use a sched ini option to make ACO consider an initial schedule, or not?
+    UpdatePheremone(bestSchedule);
+  }
   Config &schedIni = SchedulerOptions::getInstance();
   int noImprovementMax = schedIni.GetInt("ACO_STOP_ITERATIONS");
   int noImprovement = 0; // how many iterations with no improvement
