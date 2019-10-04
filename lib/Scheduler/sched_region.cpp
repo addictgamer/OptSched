@@ -319,10 +319,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     if (rslt != RES_SUCCESS) {
       Logger::Info("ACO scheduling failed");
-      if (heuristicSchedulerEnabled
-	)
-      {
+      if (lstSchdulr) {
         delete lstSchdulr;
+      }
+      if (lstSched) {
         delete lstSched;
       }
       delete acoSchdulr;
@@ -356,14 +356,17 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       isACOOptimal = true;
 
     //If the Heuristic schedule did not compute the lower bound, need to do it now. //TODO: CHIPPIE: Can it be computed prior to running either the heuristic or ACO scheduler?
-    if (false == heuristicSchedulerEnabled
-)
+    if (false == heuristicSchedulerEnabled)
     {
       //Run initial lower-bound computation.
       if (rgnTimeout == 0) //TODO: CHIPPIE: NOTE: This was a hack to disable B&B before these scheduler enabling flags task.
         costLwrBound_ = CmputCostLwrBound();
       else
         CmputLwrBounds_(false); //TODO: CHIPPIE: I highly suspect that this needs to run before the upper bound & is_optimal checks...YUP. Check line 760 of this file.
+      
+      bestSched = initialSched = acoSched;
+      bestSchedLngth = initialScheduleLength = acoScheduleLength_;
+
       assert(schedLwrBound_ <= initialSched->GetCrntLngth());
     }
 
@@ -393,15 +396,15 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     // B) Heuristic was not optimal, but ACO is. In that case, just use ACO's result for the initial schedule AND the best schedule. And don't run B&B, exit the function (since B&B only runs if the optimal schedule was not found).
     // C) Neither scheduler was optimal. In that case, compare the two schedules and use the one that's better as the input (initialSched) for B&B.
 
-    if (false == heuristicSchedulerEnabled || isACOOptimal || ACOScheduleCost > hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
+    if (false == heuristicSchedulerEnabled || isACOOptimal || ACOScheduleCost < hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
     {
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
+      bestSched = bestSched_ = initialSched = acoSched;
+      bestSchedLngth_ = initialScheduleLength;
       initialSched = acoSched;
       initialScheduleLength = ACOScheduleLength;
-      bestSchedLngth_ = initialScheduleLength;
       assert(bestSchedLngth_ >= schedLwrBound_);
-      bestSched = bestSched_ = acoSched;
 
       if (isACOOptimal)
       {
@@ -433,7 +436,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     Logger::Info(
         "The ACO schedule is of length %d and spill cost %d. Tot cost = %d",
-        acoScheduleLength_, lstSched->GetSpillCost(), bestCost_);
+        acoScheduleLength_, acoSched->GetSpillCost(), bestCost_);
 
     /*
     //TODO: CHIPPIE: Need to modify this section to not _assign_ it, but to compare with the current best (which could only be the heuristic scheduler...unless that scheduler is disabled) and replace.
