@@ -369,7 +369,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       bestSchedLngth = initialScheduleLength = acoScheduleLength_;
       bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: Rename the ACO variable to be consistent with the casing of the others...acoScheduleCost instead of ACOScheduleCost...
 
-      assert(schedLwrBound_ <= initialSched->GetCrntLngth());
+      assert(schedLwrBound_ <= initialSched->GetCrntLngth()); //TODO: CHIPPIE: Why recalling this when already available in initialSchedCost?
     }
 
     //TODO: CHIPPIE: Add in the upper bound code here.
@@ -402,10 +402,10 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
       bestSched = bestSched_ = initialSched = acoSched;
-      bestSchedLngth_ = initialScheduleLength = ACOScheduleLength;
+      bestSchedLngth_ = initialScheduleLength = ACOScheduleLength; //TODO: This ACO Schedule length is different from the one earlier!!! Why are there two???
       initialSched = acoSched;
-      bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: In this entire block...do I need the bestCost_ = <whatever>?
-      assert(bestSchedLngth_ >= schedLwrBound_);
+      bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: In this entire block...do I need the bestCost_ = <whatever>? The upper bound computation function changes the best cost to zero (in the case of ACO being optimal).
+      assert(bestSchedLngth_ >= schedLwrBound_); //TODO: CHIPPIE: This assertion fails.
 
       if (isACOOptimal)
       {
@@ -789,12 +789,12 @@ bool SchedRegion::CmputUprBounds_(InstSchedule *lstSched, bool useFileBounds) {
     hurstcCost_ -= GetCostLwrBound();
   }
 
-  bestCost_ = hurstcCost_;
+  bestCost_ = hurstcCost_; //TODO: CHIPPIE: This overwrites ACO?
   bestSchedLngth_ = hurstcSchedLngth_;
 
   if (bestCost_ == 0) {
     // If the heuristic schedule is optimal, we are done!
-    schedUprBound_ = lstSched->GetCrntLngth();
+    schedUprBound_ = lstSched->GetCrntLngth(); //TODO: CHIPPIE: Do not hardcode to list. Make it use whichever specified of list/ACO. ...or, rather, that is what's happening. Need to rename this variable to just "schedule" since it's already agnostic.
     return true;
   } else if (isSecondPass) {
     // In the second pass, the upper bound is the length of the min-RP schedule
