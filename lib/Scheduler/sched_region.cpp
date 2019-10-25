@@ -107,21 +107,20 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   bool acoSchedulerEnabled = SchedulerOptions::getInstance().GetBool("ACO_ENABLED");
   bool bbSchedulerEnabled = SchedulerOptions::getInstance().GetBool("BB_ENABLED");
 
-  if (false == heuristicSchedulerEnabled && false == acoSchedulerEnabled) //TODO: CHIPPIE: Return error if ACO & the heuristic are disabled. Don't care about B&B, it may be disabled, or it may not, in any combination. As long as at least one of the heuristic or ACO are enabled.
-  {
+  if (false == heuristicSchedulerEnabled && false == acoSchedulerEnabled) { //TODO: CHIPPIE: Return error if ACO & the heuristic are disabled. Don't care about B&B, it may be disabled, or it may not, in any combination. As long as at least one of the heuristic or ACO are enabled.
     //Abort if ACO and heuristic algorithms are disabled.
     cout << "TODO: Descriptive error message here saying that there must be at least one of the ACO or Heuristic scheduler enabled.\n";
     return RES_ERROR;
   }
 
-	/*
-	 * Algorithm run order:
-	 * 1) Heuristic
-	 * 2) ACO
-	 * 3) Branch & Bound
-	 * 
-	 * Each of these 3 algorithms can be individually disabled, but one of the heuristic or ACO must be enabled. (TODO: CHIPPIE)
-	 */
+  /*
+    * Algorithm run order:
+    * 1) Heuristic
+    * 2) ACO
+    * 3) Branch & Bound
+    * 
+    * Each of these 3 algorithms can be individually disabled, but one of the heuristic or ACO must be enabled. (TODO: CHIPPIE)
+    */
 
   Logger::Info("---------------------------------------------------------------"
                "------------");
@@ -387,8 +386,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     //TODO: CHIPPIE: ACO should not change the upper bound unless it is better (i.e. lower) than the heuristic's.
 
-    if (isACOOptimal)
-    {
+    if (isACOOptimal) {
       cout << "[CHIPPIE: DEBUG] ***** ACO SCHEDULE IS OPTIMAL *****\n"; //TODO: CHIPPIE: REMOVE DEBUGGING STATEMENT.
     }
 
@@ -397,8 +395,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
     // B) Heuristic was not optimal, but ACO is. In that case, just use ACO's result for the initial schedule AND the best schedule. And don't run B&B, exit the function (since B&B only runs if the optimal schedule was not found).
     // C) Neither scheduler was optimal. In that case, compare the two schedules and use the one that's better as the input (initialSched) for B&B.
 
-    if (false == heuristicSchedulerEnabled || isACOOptimal || ACOScheduleCost < hurstcCost_) //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
-    {
+    if (false == heuristicSchedulerEnabled || isACOOptimal || ACOScheduleCost < hurstcCost_) { //If the heuristic was not run (and thus no initial schedule was set), or if the heuristic schedule is not optimal but ACO's is, or if neither schedule is optimal but ACO's is better, then set the initial and best schedule to ACO's.
       //TODO: CHIPPIE: Do everything anyway.
       //TODO: CHIPPIE: Determine what needs to be done between both? And determine what needs to be done in the case of heuristic schedule already having run?
       bestSched = bestSched_ = initialSched = acoSched;
@@ -407,20 +404,15 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: In this entire block...do I need the bestCost_ = <whatever>? The upper bound computation function changes the best cost to zero (in the case of ACO being optimal).
       assert(bestSchedLngth_ >= schedLwrBound_); //TODO: CHIPPIE: This assertion fails.
 
-      if (isACOOptimal)
-      {
+      if (isACOOptimal) {
         initialScheduleOptimal = true;
-      }
-      else
-      {
+      } else {
         initialScheduleOptimal = false;
       }
 
       //TODO: CHIPPIE: Not done with this portion?
-      //In the original, the thing that came next was the heuristic lower bound computation. Then the heuristic upper bound computation. Or something liek that.
-    }
-    else
-    {
+      //In the original, the thing that came next was the heuristic lower bound computation. Then the heuristic upper bound computation. Or something like that.
+    } else {
       //TODO: CHIPPIE: Find a way to do this better.
 
       //So, presently. To find if a schedule is optimal, that's done while computing the upper bound.
