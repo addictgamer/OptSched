@@ -305,6 +305,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
   if (acoSchedulerEnabled && false == initialScheduleOptimal) { //TODO: CHIPPIE: If the Heuristic algorithm already produced the optimal result, don't run ACO or B&B.
     //TODO: CHIPPIE: If ACO's schedule is optimal, set the best schedule to that (and don't run B&B).
     //TODO: CHIPPIE: If neither ACO's or the Heuristic's schedule is optimal, compare ACO's result with the heuristic's and then set the initial_schedule to that.
+    //TODO: Perhaps do InitForSchdulng() first?
 
     cout << "TODO: ACO Scheduler is enabled.\n"; //TODO: Remove this debugging line when done.
     acoStart = Utilities::GetProcessorTime();
