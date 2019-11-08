@@ -183,7 +183,7 @@ protected:
   // TODO(max): Document.
   void CmputLwrBounds_(bool useFileBounds);
   // TODO(max): Document.
-  bool CmputUprBounds_(InstSchedule *lstSched, bool useFileBounds);
+  bool CmputUprBounds_(InstSchedule *schedule, bool useFileBounds);
   // Handle the enumerator's result
   void HandlEnumrtrRslt_(FUNC_RESULT rslt, InstCount trgtLngth);
 

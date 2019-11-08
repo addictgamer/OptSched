@@ -403,6 +403,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
       bestSchedLngth_ = initialScheduleLength = ACOScheduleLength; //TODO: This ACO Schedule length is different from the one earlier!!! Why are there two???
       initialSched = acoSched;
       bestCost_ = initialSchedCost = ACOScheduleCost; //TODO: CHIPPIE: In this entire block...do I need the bestCost_ = <whatever>? The upper bound computation function changes the best cost to zero (in the case of ACO being optimal).
+      cout << "[CHIPPIE: DEBUG] ***** best length = " << bestSchedLngth_ << ", lower bound = " << schedLwrBound_ << ", ACO len =" << ACOScheduleLength << " *****\n"; //TODO: CHIPPIE: REMOVE DEBUGGING STATEMENT.
       assert(bestSchedLngth_ >= schedLwrBound_); //TODO: CHIPPIE: This assertion fails.
 
       if (isACOOptimal) {
@@ -776,23 +777,27 @@ void SchedRegion::CmputLwrBounds_(bool useFileBounds) {
   delete rvrsRlxdSchdulr;
 }
 
-bool SchedRegion::CmputUprBounds_(InstSchedule *lstSched, bool useFileBounds) {
-  if (useFileBounds) {
-    hurstcCost_ = dataDepGraph_->GetFileCostUprBound(); //TODO: Do not hardcode to use the heuristic cost?
+bool SchedRegion::CmputUprBounds_(InstSchedule *schedule, bool useFileBounds) {
+  if (useFileBounds) { //TODO: CHIPPIE: Why?
+    hurstcCost_ = dataDepGraph_->GetFileCostUprBound(); //TODO: CHIPPIE: Do not hardcode to use the heuristic cost?
     hurstcCost_ -= GetCostLwrBound();
   }
 
-  bestCost_ = hurstcCost_; //TODO: CHIPPIE: This overwrites ACO?
-  bestSchedLngth_ = hurstcSchedLngth_;
+  //TODO: CHIPPIE: Why the following 2 lines? These are already set in FindOptimalSchedule().
+  //bestCost_ = hurstcCost_; //TODO: CHIPPIE: This overwrites ACO?
+  //bestSchedLngth_ = hurstcSchedLngth_;
+  cout << "***** bestCost_ in CmputUprBounds_() is " << bestCost_ << " ******\n";
+  bestCost_ = schedule->GetCost();
+  bestSchedLngth_ = schedule->GetCrntLngth();
 
   if (bestCost_ == 0) {
     // If the heuristic schedule is optimal, we are done!
-    schedUprBound_ = lstSched->GetCrntLngth(); //TODO: CHIPPIE: Do not hardcode to list. Make it use whichever specified of list/ACO. ...or, rather, that is what's happening. Need to rename this variable to just "schedule" since it's already agnostic.
+    schedUprBound_ = schedule->GetCrntLngth(); //TODO: CHIPPIE: Do not hardcode to list. Make it use whichever specified of list/ACO. ...or, rather, that is what's happening. Need to rename this variable to just "schedule" since it's already agnostic.
     return true;
   } else if (isSecondPass) {
     // In the second pass, the upper bound is the length of the min-RP schedule
     // that was found in the first pass with stalls inserted.
-    schedUprBound_ = lstSched->GetCrntLngth();
+    schedUprBound_ = schedule->GetCrntLngth();
     return false;
   } else {
     CmputSchedUprBound_();
