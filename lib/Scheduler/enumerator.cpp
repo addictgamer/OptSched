@@ -2091,7 +2091,7 @@ FUNC_RESULT LengthCostEnumerator::FindFeasibleSchedule(InstSchedule *sched,
 /*****************************************************************************/
 
 bool LengthCostEnumerator::WasObjctvMet_() {
-  assert(GetBestCost_() >= 0); //TODO: This assertion is failing.
+  assert(GetBestCost_() >= 0);
 
   if (WasSolnFound_() == false) {
     return false;
