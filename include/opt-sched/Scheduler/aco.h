@@ -48,7 +48,7 @@ private:
   int ants_per_iteration;
   bool print_aco_trace;
   std::vector<double> scores(std::vector<Choice> ready, SchedInstruction *last);
-  InstSchedule* initialSchedule;
+  InstSchedule* initialSchedule_;
 };
 
 } // namespace opt_sched

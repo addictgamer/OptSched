@@ -63,12 +63,12 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   int pheremone_size = (count_ + 1) * count_;
   pheremone_ = new pheremone_t[pheremone_size];
 
-  this->initialSchedule = NULL;
-  if (initialSchedule)
-  {
-    this->initialSchedule = new InstSchedule(machineModel, dataDepGraph, vrfySched);
-    this->initialSchedule->Copy(initialSchedule);
-  }
+  this->initialSchedule_ = NULL;
+//  if (initialSchedule)
+//  {
+//    this->initialSchedule_ = new InstSchedule(machineModel, dataDepGraph, vrfySched);
+//    this->initialSchedule_->Copy(initialSchedule);
+//  }
 }
 
 ACOScheduler::~ACOScheduler() {
@@ -272,10 +272,11 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     pheremone_[i] = initialValue_;
   std::cerr << "initialValue_" << initialValue_ << std::endl;
 
-  InstSchedule *bestSchedule = initialSchedule;
-  if (bestSchedule) { //TODO: CHIPPIE: Should it use a sched ini option to make ACO consider an initial schedule, or not?
-    UpdatePheremone(bestSchedule);
-  }
+  InstSchedule *bestSchedule = NULL;
+//  InstSchedule *bestSchedule = initialSchedule_; //TODO: CHIPPIE: This is causing the regression!!!
+//  if (bestSchedule) { //TODO: CHIPPIE: Should it use a sched ini option to make ACO consider an initial schedule, or not?
+//    UpdatePheremone(bestSchedule);
+//  }
   Config &schedIni = SchedulerOptions::getInstance();
   int noImprovementMax = schedIni.GetInt("ACO_STOP_ITERATIONS");
   int noImprovement = 0; // how many iterations with no improvement
