@@ -221,7 +221,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule( //TODO: CHIPPIE: Add helper functi
 
     InstCount hurstcExecCost;
     Config &schedIni = SchedulerOptions::getInstance();
-    bestCost_ = initialScheduleCost_ = initialScheduleCost = hurstcCost_ = lstSched->GetCost();
+    initialScheduleCost_ = initialScheduleCost = hurstcCost_ = lstSched->GetCost();
     cout << "[CHIPPIE: DEBUG] Right after lstSched->GetCost(): return value was " << lstSched->GetCost() << "\n";
     isLstOptml = CmputUprBounds_(lstSched, false, hurstcCost_, hurstcSchedLngth_);
 
